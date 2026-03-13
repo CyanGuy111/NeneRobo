@@ -6,6 +6,8 @@ from discord.ext import commands
 from discord.ext import tasks
 import os
 from dotenv import load_dotenv
+import random
+from typing import Literal
 
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("service_account.json", scopes=scopes)
@@ -18,6 +20,41 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 intents = discord.Intents.default()
 intents.message_content = True
+
+async def fetch_data():
+    global data
+    print("Fetching fresh data from Google Sheets...")
+    
+    try:
+        obg = clients.open_by_key("1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo").sheet1
+        raw_data = obg.get('A2:F')
+        
+        if raw_data:
+            headers = raw_data[0]
+            parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
+            
+            data = {(i['ID'], i['Difficulty']): i for i in parsed}
+            print(f"Successfully cached OBG")
+            
+    except Exception as e:
+        print(f"Failed to update data (OBG): {e}")
+
+    try:
+        s39s = clients.open_by_key("1B8tX9VL2PcSJKyuHFVd2UT_8kYlY4ZdwHwg9MfWOPug").worksheet('Constants')
+        raw_data = s39s.get('A:G')
+        
+        if raw_data:
+            headers = raw_data[0]
+            parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
+            
+            for i in parsed:
+                if (i['Song ID'], i['Difficulty']) in data:
+                    data[(i['Song ID'], i['Difficulty'])]["Japanese name"] = i[""]
+                    data[(i['Song ID'], i['Difficulty'])]["39s const"] = i["Constant"]
+            print(f"Successfully cached 39s")
+            
+    except Exception as e:
+        print(f"Failed to update data (39s): {e}")
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -32,39 +69,7 @@ class MyBot(commands.Bot):
 
     @tasks.loop(minutes=15)
     async def refresh_sheet_data(self):
-        global data
-        print("Fetching fresh data from Google Sheets...")
-        
-        try:
-            obg = clients.open_by_key("1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo").sheet1
-            raw_data = obg.get('A2:F')
-            
-            if raw_data:
-                headers = raw_data[0]
-                parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
-                
-                data = {(i['ID'], i['Difficulty']): i for i in parsed}
-                print(f"Successfully cached OBG")
-                
-        except Exception as e:
-            print(f"Failed to update data (OBG): {e}")
-
-        try:
-            s39s = clients.open_by_key("1B8tX9VL2PcSJKyuHFVd2UT_8kYlY4ZdwHwg9MfWOPug").worksheet('Constants')
-            raw_data = s39s.get('A:G')
-            
-            if raw_data:
-                headers = raw_data[0]
-                parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
-                
-                for i in parsed:
-                    if (i['Song ID'], i['Difficulty']) in data:
-                        data[(i['Song ID'], i['Difficulty'])]["Japanese name"] = i[""]
-                        data[(i['Song ID'], i['Difficulty'])]["39s const"] = i["Constant"]
-                print(f"Successfully cached 39s")
-                
-        except Exception as e:
-            print(f"Failed to update data (39s): {e}")
+        await fetch_data()
 
     @refresh_sheet_data.before_loop
     async def before_refresh(self):
@@ -125,10 +130,12 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
     )
     embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 'N/A'))))  
     await interaction.response.send_message(embed=embed)
+    bot_msg = await interaction.original_response()
+    await bot_msg.add_reaction('<:kanade:1481983019463217252>')
 
-@bot.tree.command(name="get_jacket", description="Get song jacket")
+@bot.tree.command(name="song_jacket", description="Get song jacket")
 @app_commands.autocomplete(song=song_autocomplete)
-async def get_jacket(interaction: discord.Interaction, song: str):
+async def song_jacket(interaction: discord.Interaction, song: str):
     entry = None
     
     for info in data.values():
@@ -145,4 +152,44 @@ async def get_jacket(interaction: discord.Interaction, song: str):
     )
     embed.set_image(url=get_img_url(int(entry.get('ID', 'N/A'))))  
     await interaction.response.send_message(embed=embed)
+    bot_msg = await interaction.original_response()
+    await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+
+@bot.tree.command(name="force_update", description="Force the bot to sync with the spreadsheet")
+async def force_update(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    await fetch_data()
+    await interaction.response.send_message("Update complete!")
+    bot_msg = await interaction.original_response()
+    await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+    
+@bot.tree.command(name="song_randomizer", description="Randomly choose a list of songs")
+async def song_randomizer(interaction: discord.Interaction, lowest_level:int = None, highest_level:int = None, 
+                          difficulty: Literal["Expert", "Master", "Append"] = None, amount:int = 5):
+    
+    song_list = [song for song in data.values() 
+                 if (difficulty == None or song['Difficulty'] == difficulty) 
+                 and (lowest_level == None or int(song['Ingame Constant']) >= lowest_level)
+                 and (highest_level == None or int(song['Ingame Constant']) <= highest_level)]
+    if not song_list:
+        await interaction.response.send_message("No matched songs found!", ephemeral=True)
+        return
+    chosen_list = random.sample(song_list, k=min(amount, len(song_list)))
+    
+    embed = discord.Embed(
+        title="Song Randomizer",
+        color=discord.Color.blue(),
+        description=f"Found {min(amount, len(song_list))} songs matching your criteria:"
+    )
+    
+    for idx, song in enumerate(chosen_list, 1):
+        name = song.get('Song Name', 'Unknown')
+        diff = song.get('Difficulty', 'Unknown')
+        level = song.get('Ingame Constant', 'N/A')
+        embed.add_field(name=f"{idx}. {name}", value=f"**Difficulty:** {diff} | **Level:** {level}", inline=False)
+
+    await interaction.response.send_message(embed=embed)
+    bot_msg = await interaction.original_response()
+    await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+    
 bot.run(TOKEN)
