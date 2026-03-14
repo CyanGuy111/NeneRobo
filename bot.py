@@ -292,7 +292,7 @@ class ScoreSelect(discord.ui.Select):
 
 class ScoreView(discord.ui.View):
     def __init__(self, song_list, clear_type, info):
-        super().__init__(timeout=300)
+        super().__init__(timeout=600)
         self.song_list = song_list
         self.clear_type = clear_type
         self.info = info
@@ -381,10 +381,11 @@ class ScoreView(discord.ui.View):
         for item in self.children:
             item.disabled = True
             
-        await interaction.message.edit(view=self)
+        await interaction.edit_original_response(view=self)
+
         await interaction.followup.send(f"Successfully saved {len(records)} `{self.clear_type}` score(s)!")
 
-@bot.tree.command(name="log_score", description="Save new song clears to the database (39s constant) (timeout: 5 mins)")
+@bot.tree.command(name="log_scores", description="Save new song clears to the database (39s constant) (timeout: 5 mins)")
 async def log_score(interaction: discord.Interaction, 
                     clear_type: Literal["FC", "AP"],
                     lowest_level:int = None, 
@@ -436,6 +437,38 @@ async def log_score(interaction: discord.Interaction,
         await bot_msg.add_reaction('<:kanade:1481983019463217252>')
     except discord.HTTPException:
         pass
+
+@bot.tree.command(name="log_single_score", description="Log a single song score")
+@app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
+async def log_single(interaction: discord.Interaction, song: str, difficulty: str, clear_type: Literal["FC", "AP"]):
+    entry = None
+    for info in interaction.client.data.values():
+        if info.get('Song Name', '').lower() == song.lower() and info.get('Difficulty', '').lower() == difficulty.lower():
+            entry = info
+            break
+            
+    if not entry:
+        await interaction.response.send_message("Song not found", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+
+    c_39 = entry.get('39s const')
+    c_game = entry.get('Ingame Constant', 0.0)
+    
+    c_39 = float(c_39) if c_39 and c_39 not in ['N/A', ''] else None
+    c_game = float(c_game) if c_game and c_game not in ['N/A', ''] else 0.0
+    
+    final_const = c_39 if c_39 else c_game
+    song_id = entry.get('ID')
+
+    await interaction.client.db.execute('''
+        INSERT OR REPLACE INTO user_scores (user_id, song_id, difficulty, constant, clear_type)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (interaction.user.id, song_id, difficulty, final_const, clear_type))
+    await interaction.client.db.commit()
+
+    await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
 
 @bot.tree.command(name="delete_score", description="Delete a logged score from your profile")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
@@ -514,41 +547,43 @@ async def b30_ap(interaction: discord.Interaction):
     os.remove(output_filename)
 
 @bot.tree.command(name="b30", description="Generate B30")
-async def b30_general(interaction: discord.Interaction):
+async def b30(interaction: discord.Interaction):
     await interaction.response.defer()
 
     async with interaction.client.db.execute('''
         SELECT song_id, difficulty, constant, clear_type 
         FROM user_scores 
         WHERE user_id = ?
-        ORDER BY constant DESC 
-        LIMIT 30
     ''', (interaction.user.id,)) as cursor:
         scores = await cursor.fetchall()
 
     if not scores:
         await interaction.followup.send("You don't have any scores logged yet!")
         return
-
-    top_30_songs = []
-    total_constant = 0.0
+    
+    all_songs = []
 
     for song_id, difficulty, constant, clear_type in scores:
         info = interaction.client.data.get((song_id, difficulty))
         song_name = info.get('Song Name') if info else 'Unknown'
         
-        total_constant += constant
-        top_30_songs.append({
+        final_constant = constant if clear_type == 'AP' else constant - 1.0
+        
+        all_songs.append({
             'id': song_id,
             'name': song_name,
             'difficulty': difficulty,
-            'constant': constant if clear_type == 'AP' else constant - 1,
+            'constant': final_constant,
             'clear_type': clear_type
         })
     
-    top_30_songs.sort(key=lambda x: (-x['constant'], x['name']))
+    all_songs.sort(key=lambda x: (-x['constant'], x['name']))
+    top_30_songs = all_songs[:30]
+    
+    total_constant = sum(song['constant'] for song in top_30_songs)
+    
     output_filename = f"b30_{interaction.user.id}.png"
-    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, clear_type, output_filename)
+    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, None, output_filename)
 
     file = discord.File(output_filename)
     await interaction.followup.send(f"{interaction.user.mention}", file=file)
