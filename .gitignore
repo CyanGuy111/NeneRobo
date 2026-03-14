@@ -2,3 +2,5 @@ testing.py
 .env
 service_account.json
 ./tmp
+*.sqlite
+*.db

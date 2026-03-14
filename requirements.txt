@@ -2,3 +2,6 @@ discord.py
 gspread
 google-auth
 python-dotenv
+aiosqlite
+requests
+Pillow
