@@ -46,7 +46,7 @@ def draw_text_with_special_symbols(draw, x, y, text, main_font, secondary_font, 
             cur_x += font.getlength(char)
         cur_y += line_spacing
 
-def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png"):
+def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png", background="assets/backgound/kitty.png"):
     SCALE = 2
 
     WIDTH = 1000 * SCALE
@@ -64,7 +64,7 @@ def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename
     COLOR_AP_END = (0, 227, 199, 255)
 
     try:
-        image = Image.open("assets/background/kitty.png").convert("RGBA")
+        image = Image.open(background).convert("RGBA")
         image = image.resize((WIDTH, HEIGHT))
     except FileNotFoundError:
         image = Image.new("RGBA", (WIDTH, HEIGHT), (20, 25, 40, 255))

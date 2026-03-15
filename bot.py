@@ -385,7 +385,7 @@ class ScoreView(discord.ui.View):
 
         await interaction.followup.send(f"Successfully saved {len(records)} `{self.clear_type}` score(s)!")
 
-@bot.tree.command(name="log_scores", description="Save new song clears to the database (39s constant) (timeout: 5 mins)")
+@bot.tree.command(name="log_scores", description="Save new song clears to the database (39s constant) (timeout: 10 mins)")
 async def log_score(interaction: discord.Interaction, 
                     clear_type: Literal["FC", "AP"],
                     lowest_level:int = None, 
@@ -505,8 +505,24 @@ async def delete_score(interaction: discord.Interaction, song: str, difficulty: 
     else:
         await interaction.followup.send(f"You have no saved score to delete.", ephemeral=True)
 
+bg_literal = Literal[
+    "canary",
+    "dream",
+    "faith",
+    "hug",
+    "kitty",
+    "nsnf",
+    "profile1",
+    "regret",
+    "retie",
+    "secret",
+    "wanderer"
+]
+
 @bot.tree.command(name="b30_ap", description="Generate B30 All Perfect ")
-async def b30_ap(interaction: discord.Interaction):
+@app_commands.describe(background="Change the background of the generated image (I stole them from the b30 website)")
+async def b30_ap(interaction: discord.Interaction, background: bg_literal = "kitty"):
+    bg_link = f"assets/background/{background}.png"
     await interaction.response.defer()
 
     async with interaction.client.db.execute('''
@@ -540,14 +556,16 @@ async def b30_ap(interaction: discord.Interaction):
         
     top_30_songs.sort(key=lambda x: (-x['constant'], x['name']))
     output_filename = f"b30_{interaction.user.id}_ap.png"
-    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, clear_type, output_filename)
+    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, clear_type, output_filename, bg_link)
 
     file = discord.File(output_filename)
     await interaction.followup.send(f"{interaction.user.mention}", file=file)
     os.remove(output_filename)
 
 @bot.tree.command(name="b30", description="Generate B30")
-async def b30(interaction: discord.Interaction):
+@app_commands.describe(background="Change the background of the generated image (I stole them from the b30 website)")
+async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"):
+    bg_link = f"assets/background/{background}.png"
     await interaction.response.defer()
 
     async with interaction.client.db.execute('''
@@ -583,7 +601,7 @@ async def b30(interaction: discord.Interaction):
     total_constant = sum(song['constant'] for song in top_30_songs)
     
     output_filename = f"b30_{interaction.user.id}.png"
-    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, None, output_filename)
+    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, None, output_filename, bg_link)
 
     file = discord.File(output_filename)
     await interaction.followup.send(f"{interaction.user.mention}", file=file)
