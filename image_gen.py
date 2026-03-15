@@ -46,7 +46,7 @@ def draw_text_with_special_symbols(draw, x, y, text, main_font, secondary_font, 
             cur_x += font.getlength(char)
         cur_y += line_spacing
 
-def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png", background="assets/backgound/kitty.png"):
+def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png", background="assets/background/kitty.png"):
     SCALE = 2
 
     WIDTH = 1000 * SCALE
