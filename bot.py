@@ -188,6 +188,7 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
     FC_const = entry.get('FC Constant', 'N/A')
     AP_const = entry.get('AP Constant', 'N/A')
     jp_name = entry.get('Japanese name', 'N/A')
+    note = f"**Note:** `{entry.get('Notes')}`" if entry.get('Notes') else ""
 
     embed = discord.Embed(
         title=entry.get('Song Name', 'Unknown'),
@@ -196,8 +197,7 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
                     f"**Level:** `{entry.get('Ingame Constant', 'N/A')}`\n"
                     f"**39s Constant:** `{entry.get('39s const', 'N/A')}`\n"
                     f"**FC Constant (OBG list):** `{FC_const if FC_const != '0.0' else 'N/A'}`\n"
-                    f"**AP Constant (OBG list):** `{AP_const if AP_const != '0.0' else 'N/A'}`\n"
-                    f"**Note:** `{entry.get('Notes', 'N/A')}`\n"
+                    f"**AP Constant (OBG list):** `{AP_const if AP_const != '0.0' else 'N/A'}`\n" + note
     )
     embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 'N/A'))))  
     await interaction.response.send_message(embed=embed)
