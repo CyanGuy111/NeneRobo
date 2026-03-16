@@ -28,7 +28,7 @@ intents.message_content = True
 
 def is_admin():
     def check(interaction: discord.Interaction) -> bool:
-        admins = [int(os.getenv('ADMIN_ID'))]
+        admins = [int(i) for i in os.getenv("ADMIN_IDs").split(',')]
         return interaction.user.id in admins
     return app_commands.check(check)
 
