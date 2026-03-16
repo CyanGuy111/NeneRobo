@@ -98,12 +98,20 @@ class MyBot(commands.Bot):
         
         try:
             obg = clients.open_by_key("1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo").sheet1
-            raw_data = obg.get('A2:F')
+            raw_data = obg.get_all_values()
             
             if raw_data:
-                headers = raw_data[0]
-                parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
+                headers = raw_data[1][:6] + ['Notes']
+                parsed = []
                 
+                for row in raw_data[2:]:
+                    if not row:
+                        continue
+                    
+                    padded_row = row + ([""] * (17 - len(row)))
+
+                    parsed.append(dict(zip(headers, padded_row[:6] + [padded_row[-1]])))
+
                 self.data = {(i['ID'], i['Difficulty']): i for i in parsed}
                 print(f"Successfully cached OBG")
                 
@@ -189,6 +197,7 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
                     f"**39s Constant:** `{entry.get('39s const', 'N/A')}`\n"
                     f"**FC Constant (OBG list):** `{FC_const if FC_const != '0.0' else 'N/A'}`\n"
                     f"**AP Constant (OBG list):** `{AP_const if AP_const != '0.0' else 'N/A'}`\n"
+                    f"**Note:** `{entry.get('Notes', 'N/A')}`\n"
     )
     embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 'N/A'))))  
     await interaction.response.send_message(embed=embed)
