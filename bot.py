@@ -32,6 +32,26 @@ def is_admin():
         return interaction.user.id in admins
     return app_commands.check(check)
 
+def get_b30_const(c_39, obg_const, ingame_const):
+    if c_39 and str(c_39).strip() not in ['N/A', '', '0.0', '0']:
+        return float(c_39)
+    
+    try:
+        obg_val = float(obg_const) if obg_const and str(obg_const).strip() not in ['N/A', ''] else 0.0
+        game_val = float(ingame_const) if ingame_const and str(ingame_const).strip() not in ['N/A', ''] else 0.0
+    except ValueError:
+        return 0.0
+    
+    if obg_val == 0.0:
+        return game_val
+    
+    if int(obg_val) < int(game_val):
+        return float(f"{int(game_val)}.0")
+    elif int(obg_val) > int(game_val):
+        return float(f"{int(game_val)}.9")
+    else:
+        return obg_val
+
 class MyBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -58,6 +78,27 @@ class MyBot(commands.Bot):
         print(f"Synced slash commands for {self.user}")
         self.refresh_sheet_data.start()
 
+    async def update_score(self, records: list[tuple]):
+        if not records:
+            return
+        
+        await self.db.executemany('''
+            INSERT OR REPLACE INTO user_scores (user_id, song_id, difficulty, constant, clear_type)
+            VALUES (?, ?, ?, ?, ?)
+        ''', records)
+
+        await self.db.commit()
+
+    async def remove_score(self, user_id: int, song_id: str, difficulty: str) -> int:
+        async with self.db.execute('''
+            DELETE FROM user_scores 
+            WHERE user_id = ? AND song_id = ? AND difficulty = ?
+        ''', (user_id, song_id, difficulty)) as cursor:
+            deleted_rows = cursor.rowcount
+            
+        await self.db.commit()
+        return deleted_rows
+
     @tasks.loop(minutes=15)
     async def refresh_sheet_data(self):
         await self.fetch_data()
@@ -82,7 +123,12 @@ class MyBot(commands.Bot):
                 c_39 = float(c_39) if c_39 and c_39 not in ['N/A', ''] else None
                 c_game = float(c_game) if c_game and c_game not in ['N/A', ''] else 0.0
 
-                const = c_39 if c_39 else c_game
+                if clear_type == 'AP':
+                    obg_const = song_info.get('AP Constant')
+                else:
+                    obg_const = song_info.get('FC Constant')
+
+                const = get_b30_const(c_39, obg_const, c_game)
                 update_batch.append((const, user_id, song_id, difficulty))
                 
         if update_batch:
@@ -381,11 +427,7 @@ class ScoreView(discord.ui.View):
             song_id = key.split('_')[0] 
             records.append((interaction.user.id, song_id, difficulty, const, self.clear_type))
 
-        await interaction.client.db.executemany('''
-            INSERT OR REPLACE INTO user_scores (user_id, song_id, difficulty, constant, clear_type)
-            VALUES (?, ?, ?, ?, ?)
-        ''', records)
-        await interaction.client.db.commit()
+        await interaction.client.upsert_scores(records)
 
         for item in self.children:
             item.disabled = True
@@ -417,7 +459,14 @@ async def log_score(interaction: discord.Interaction,
             continue
 
         c_39 = song.get('39s const')
-        const = float(c_39) if c_39 else level
+        c_game = song.get('Ingame Constant')
+        
+        if clear_type == 'AP':
+            obg_const = song.get('AP Constant')
+        else:
+            obg_const = song.get('FC Constant')
+
+        const = get_b30_const(c_39, obg_const, c_game)
 
         key = f"{song['ID']}_{song['Difficulty']}"
 
@@ -461,21 +510,26 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
         return
 
     await interaction.response.defer()
-
+    
     c_39 = entry.get('39s const')
     c_game = entry.get('Ingame Constant', 0.0)
     
-    c_39 = float(c_39) if c_39 and c_39 not in ['N/A', ''] else None
-    c_game = float(c_game) if c_game and c_game not in ['N/A', ''] else 0.0
-    
-    final_const = c_39 if c_39 else c_game
+    if clear_type == 'AP':
+        obg_const = entry.get('AP Constant')
+    else:
+        obg_const = entry.get('FC Constant')
+        
+    const = get_b30_const(c_39, obg_const, c_game)
+
     song_id = entry.get('ID')
 
-    await interaction.client.db.execute('''
-        INSERT OR REPLACE INTO user_scores (user_id, song_id, difficulty, constant, clear_type)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (interaction.user.id, song_id, difficulty, final_const, clear_type))
-    await interaction.client.db.commit()
+    await interaction.client.update_score([(
+        interaction.user.id, 
+        song_id, 
+        difficulty, 
+        const, 
+        clear_type
+    )])
 
     await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
 
@@ -493,14 +547,8 @@ async def delete_score(interaction: discord.Interaction, song: str, difficulty: 
         return
         
     await interaction.response.defer()
-    
-    async with interaction.client.db.execute('''
-        DELETE FROM user_scores 
-        WHERE user_id = ? AND song_id = ? AND difficulty = ?
-    ''', (interaction.user.id, song_id, difficulty)) as cursor:
-        deleted_rows = cursor.rowcount
-        
-    await interaction.client.db.commit()
+
+    deleted_rows = await interaction.client.remove_score(interaction.user.id, song_id, difficulty)
     
     if deleted_rows > 0:
         await interaction.followup.send(f"Successfully deleted your saved score for **{song} ({difficulty})**!")
