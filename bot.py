@@ -1,4 +1,5 @@
 import os
+import requests
 from dotenv import load_dotenv
 import random
 from typing import Literal
@@ -141,10 +142,15 @@ class MyBot(commands.Bot):
         
     async def fetch_data(self):
         print("Fetching fresh data from Google Sheets...")
+
+        def fetch_obg():
+            return clients.open_by_key("1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo").sheet1.get_all_values()
+        
+        def fetch_39s():
+            return clients.open_by_key("1B8tX9VL2PcSJKyuHFVd2UT_8kYlY4ZdwHwg9MfWOPug").worksheet('Constants').get('A:G')
         
         try:
-            obg = clients.open_by_key("1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo").sheet1
-            raw_data = obg.get_all_values()
+            raw_data = await asyncio.to_thread(fetch_obg)
             
             if raw_data:
                 headers = raw_data[1][:6] + ['Notes']
@@ -159,14 +165,15 @@ class MyBot(commands.Bot):
                     parsed.append(dict(zip(headers, padded_row[:6] + [padded_row[-1]])))
 
                 self.data = {(i['ID'], i['Difficulty']): i for i in parsed}
+                self.unique_songs = sorted(list(set(info.get('Song Name', '') for info in self.data.values() if info.get('Song Name'))))
+
                 print(f"Successfully cached OBG")
                 
         except Exception as e:
             print(f"Failed to update data (OBG): {e}")
 
         try:
-            s39s = clients.open_by_key("1B8tX9VL2PcSJKyuHFVd2UT_8kYlY4ZdwHwg9MfWOPug").worksheet('Constants')
-            raw_data = s39s.get('A:G')
+            raw_data = await asyncio.to_thread(fetch_39s)
             
             if raw_data:
                 headers = raw_data[0]
@@ -192,12 +199,20 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 def get_img_url(song_id):
-    if song_id in [371, 419, 453, 459, 479, 514, 528, 535, 563, 568, 598, 599, 602, 609, 640, 657, 673, 694, 701]:
-        return f"https://storage.sekai.best/sekai-en-assets/music/jacket/jacket_s_" + f"{song_id:0>{3}}" + f"/jacket_s_" + f"{song_id:0>{3}}" + f".webp"
-    return f"https://storage.sekai.best/sekai-jp-assets/music/jacket/jacket_s_" + f"{song_id:0>{3}}" + f"/jacket_s_" + f"{song_id:0>{3}}" + f".webp"
+    jp_url = f"https://storage.sekai.best/sekai-jp-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
+    en_url = f"https://storage.sekai.best/sekai-en-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
+
+    try:
+        response = requests.head(jp_url, timeout=5)
+        if response.status_code == 200:
+            return jp_url
+    except requests.RequestException:
+        pass
+        
+    return en_url
 
 async def song_autocomplete(interaction: discord.Interaction, current: str):
-    unique_songs = sorted(list(set(info.get('Song Name', '') for info in interaction.client.data.values() if info.get('Song Name'))))
+    unique_songs = getattr(interaction.client, 'unique_songs', [])
     return [
         app_commands.Choice(name=s, value=s)
         for s in unique_songs if current.lower() in s.lower()

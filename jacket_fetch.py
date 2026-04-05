@@ -8,11 +8,6 @@ scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 creds = Credentials.from_service_account_file("service_account.json", scopes=scopes)
 clients = gspread.authorize(creds)
 
-def get_img_url(song_id):
-    if song_id in [371, 419, 453, 459, 479, 514, 528, 535, 563, 568, 598, 599, 602, 609, 640, 657, 673, 694, 701]:
-        return f"https://storage.sekai.best/sekai-en-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
-    return f"https://storage.sekai.best/sekai-jp-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
-
 def download_jackets():
     print("Fetching song IDs from your Google Sheet...")
     
@@ -35,22 +30,27 @@ def download_jackets():
     print(f"Found {len(unique_ids)} unique song IDs in the spreadsheet. Starting downloads!")
     
     for song_id in sorted(list(unique_ids)):
-        url = get_img_url(song_id)
         filename = f"assets/jackets/jacket_s_{song_id:03}.webp"
         
         if os.path.exists(filename):
             print(f"Already exists, skipping: {filename}")
             continue
             
+        jp_url = f"https://storage.sekai.best/sekai-jp-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
+        en_url = f"https://storage.sekai.best/sekai-en-assets/music/jacket/jacket_s_{song_id:03}/jacket_s_{song_id:03}.webp"
+        
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(jp_url, timeout=10)
             
+            if response.status_code == 404:
+                response = requests.get(en_url, timeout=10)
+                
             if response.status_code == 200:
                 with open(filename, 'wb') as f:
                     f.write(response.content)
                 print(f"Downloaded: jacket_s_{song_id:03}.webp")
             else:
-                print(f"Error {response.status_code} for ID {song_id}")
+                print(f"Error {response.status_code} for ID {song_id} - Could not find image on either server")
                 
         except Exception as e:
             print(f"Failed to download ID {song_id}: {e}")
@@ -58,3 +58,6 @@ def download_jackets():
         time.sleep(0.1)
 
     print("Finished downloading all spreadsheet jackets!")
+
+if __name__ == "__main__":
+    download_jackets()
