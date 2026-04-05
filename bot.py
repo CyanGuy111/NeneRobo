@@ -442,7 +442,7 @@ class ScoreView(discord.ui.View):
             song_id = key.split('_')[0] 
             records.append((interaction.user.id, song_id, difficulty, const, self.clear_type))
 
-        await interaction.client.upsert_scores(records)
+        await interaction.client.update_score(records)
 
         for item in self.children:
             item.disabled = True
