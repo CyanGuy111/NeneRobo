@@ -33,9 +33,10 @@ def is_admin():
         return interaction.user.id in admins
     return app_commands.check(check)
 
-def get_b30_const(c_39, obg_const, ingame_const):
+def get_b30_const(c_39, obg_const, ingame_const, difficulty = None):
     if c_39 and str(c_39).strip() not in ['N/A', '', '0.0', '0']:
-        return float(c_39)
+        if difficulty != "Expert" or float(c_39) > 27.0:
+            return float(c_39)
     
     try:
         obg_val = float(obg_const) if obg_const and str(obg_const).strip() not in ['N/A', ''] else 0.0
@@ -45,6 +46,9 @@ def get_b30_const(c_39, obg_const, ingame_const):
     
     if obg_val == 0.0:
         return game_val
+    
+    if difficulty == 'Append':
+        return obg_val
     
     if int(obg_val) < int(game_val):
         return float(f"{int(game_val)}.0")
@@ -129,7 +133,7 @@ class MyBot(commands.Bot):
                 else:
                     obg_const = song_info.get('FC Constant')
 
-                const = get_b30_const(c_39, obg_const, c_game)
+                const = get_b30_const(c_39, obg_const, c_game, difficulty)
                 update_batch.append((const, user_id, song_id, difficulty))
                 
         if update_batch:
@@ -481,7 +485,7 @@ async def log_score(interaction: discord.Interaction,
         else:
             obg_const = song.get('FC Constant')
 
-        const = get_b30_const(c_39, obg_const, c_game)
+        const = get_b30_const(c_39, obg_const, c_game, difficulty)
 
         key = f"{song['ID']}_{song['Difficulty']}"
 
@@ -534,7 +538,7 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
     else:
         obg_const = entry.get('FC Constant')
         
-    const = get_b30_const(c_39, obg_const, c_game)
+    const = get_b30_const(c_39, obg_const, c_game, difficulty)
 
     song_id = entry.get('ID')
 
