@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import requests
 from dotenv import load_dotenv
 import random
@@ -24,6 +26,8 @@ clients = gspread.authorize(creds)
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
+BOT_SERVER_ID = int(os.getenv('BOT_SERVER_ID', 0))
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -31,6 +35,12 @@ def is_admin():
     def check(interaction: discord.Interaction) -> bool:
         admins = [int(i) for i in os.getenv("ADMIN_IDs").split(',')]
         return interaction.user.id in admins
+    return app_commands.check(check)
+
+def is_owner():
+    def check(interaction: discord.Interaction) -> bool:
+        admins = int(os.getenv("OWNER_ID"))
+        return interaction.user.id == admins
     return app_commands.check(check)
 
 def get_b30_const(c_39, obg_const, ingame_const, difficulty = None):
@@ -65,6 +75,7 @@ class MyBot(commands.Bot):
         self.data = {}
 
     async def setup_hook(self):
+
         self.db = await aiosqlite.connect('scores.db')
         
         await self.db.execute('''
@@ -80,6 +91,11 @@ class MyBot(commands.Bot):
         await self.db.commit()
 
         await self.tree.sync()
+        
+        if BOT_SERVER_ID != 0:
+            bot_server = discord.Object(id=BOT_SERVER_ID)
+            await self.tree.sync(guild=bot_server)
+
         print(f"Synced slash commands for {self.user}")
         self.refresh_sheet_data.start()
 
@@ -236,7 +252,9 @@ async def diff_autocomplete(interaction: discord.Interaction, current: str):
         for d in available_diffs if current.lower() in d.lower()
     ][:10]
 
-@bot.tree.command(name="song_constant", description="Get song details")
+song_group = app_commands.Group(name="song", description="Commands for looking up song data")
+
+@song_group.command(name="constant", description="Get song details")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
 async def song_constant(interaction: discord.Interaction, song: str, difficulty: str = 'Master'):
     entry = None
@@ -272,7 +290,7 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
     except discord.HTTPException:
         pass
 
-@bot.tree.command(name="song_jacket", description="Get song jacket")
+@song_group.command(name="jacket", description="Get song details")
 @app_commands.autocomplete(song=song_autocomplete)
 async def song_jacket(interaction: discord.Interaction, song: str):
     entry = None
@@ -296,20 +314,8 @@ async def song_jacket(interaction: discord.Interaction, song: str):
         await bot_msg.add_reaction('<:kanade:1481983019463217252>')
     except discord.HTTPException:
         pass
-
-@bot.tree.command(name="force_update", description="Force the bot to sync with the spreadsheet")
-@is_admin()
-async def force_update(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    await interaction.client.fetch_data()
-    download_jackets()
-    await interaction.followup.send("Update complete!")
-@force_update.error
-async def force_update_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.CheckFailure):
-        await interaction.response.send_message("You do not have permission to use this command.")
     
-@bot.tree.command(name="song_randomizer", description="Randomly choose a list of songs")
+@song_group.command(name="randomizer", description="Get song details")
 async def song_randomizer(interaction: discord.Interaction, 
                           lowest_level:int = None, 
                           highest_level:int = None, 
@@ -346,6 +352,51 @@ async def song_randomizer(interaction: discord.Interaction,
     except discord.HTTPException:
         pass
 
+@bot.tree.command(name="sync-database", description="Force the bot to sync with the spreadsheet", guild=discord.Object(id=BOT_SERVER_ID) if BOT_SERVER_ID else None)
+@is_admin()
+async def force_update(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    await interaction.client.fetch_data()
+    download_jackets()
+    await interaction.followup.send("Update complete!")
+@force_update.error
+async def force_update_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("You do not have permission to use this command.")
+
+@bot.tree.command(name="update-bot", description="Call git pull, update dependencies, and restart bot", guild=discord.Object(id=BOT_SERVER_ID) if BOT_SERVER_ID else None)
+@is_owner()
+async def update_bot(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    try:
+        git_process = subprocess.run(
+            ['git', 'pull'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        if 'requirements.txt' in git_process.stdout:
+            subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'],
+                capture_output=True,
+                check=True
+            )
+
+        await interaction.followup.send("Updated. Restarting...")
+        
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    except subprocess.CalledProcessError as e:
+        err_msg = e.stderr or e.stdout
+        await interaction.followup.send(f"Command error: `{err_msg[-1900:]}`")
+    except Exception as e:
+        await interaction.followup.send(f"Error: `{e}`")
+@update_bot.error
+async def update_bot_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("You do not have permission to use this command.")
+
+
 class ScoreSelect(discord.ui.Select):
     def __init__(self, song_options, clear_type, info):
         super().__init__(placeholder=f"Select the songs you {clear_type}-ed", 
@@ -363,6 +414,7 @@ class ScoreSelect(discord.ui.Select):
         self.view.selected_keys.update(self.values)
 
         await self.view.update_message(interaction)
+
 
 class ScoreView(discord.ui.View):
     def __init__(self, song_list, clear_type, info):
@@ -455,7 +507,9 @@ class ScoreView(discord.ui.View):
 
         await interaction.followup.send(f"Successfully saved {len(records)} `{self.clear_type}` score(s)!")
 
-@bot.tree.command(name="log_scores", description="Save new song clears to the database (39s constant) (timeout: 10 mins)")
+record_group = app_commands.Group(name="record", description="Commands for adding/deleting personal plays to the bot database")
+
+@record_group.command(name="add_bulk", description="Save new song clears to the database (39s constant) (timeout: 10 mins)")
 async def log_score(interaction: discord.Interaction, 
                     clear_type: Literal["FC", "AP"],
                     lowest_level:int = None, 
@@ -515,7 +569,7 @@ async def log_score(interaction: discord.Interaction,
     except discord.HTTPException:
         pass
 
-@bot.tree.command(name="log_single_score", description="Log a single song score")
+@record_group.command(name="add_single", description="Log a single song score")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
 async def log_single(interaction: discord.Interaction, song: str, difficulty: str, clear_type: Literal["FC", "AP"]):
     entry = None
@@ -552,7 +606,7 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
 
     await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
 
-@bot.tree.command(name="delete_score", description="Delete a logged score from your profile")
+@record_group.command(name="delete", description="Delete a logged score from your profile")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
 async def delete_score(interaction: discord.Interaction, song: str, difficulty: str):
     song_id = None
@@ -595,52 +649,12 @@ bg_literal = Literal[
     "wanderer"
 ]
 
-@bot.tree.command(name="b30_ap", description="Generate B30 All Perfect ")
-@app_commands.describe(background="Change the background of the generated image (I stole them from the b30 website)")
-async def b30_ap(interaction: discord.Interaction, background: bg_literal = "kitty"):
-    bg_link = f"assets/background/{background}.png"
-    await interaction.response.defer()
-
-    async with interaction.client.db.execute('''
-        SELECT song_id, difficulty, constant, clear_type 
-        FROM user_scores 
-        WHERE user_id = ? AND clear_type = 'AP'
-        ORDER BY constant DESC 
-        LIMIT 30
-    ''', (interaction.user.id,)) as cursor:
-        scores = await cursor.fetchall()
-
-    if not scores:
-        await interaction.followup.send("You don't have any AP scores logged yet!")
-        return
-
-    top_30_songs = []
-    total_constant = 0.0
-
-    for song_id, difficulty, constant, clear_type in scores:
-        info = interaction.client.data.get((song_id, difficulty))
-        song_name = info.get('Song Name') if info else 'Unknown'
-        
-        total_constant += constant
-        top_30_songs.append({
-            'id': song_id,
-            'name': song_name,
-            'difficulty': difficulty,
-            'constant': constant,
-            'clear_type': clear_type
-        })
-        
-    top_30_songs.sort(key=lambda x: (-x['constant'], x['name']))
-    output_filename = f"b30_{interaction.user.id}_ap.png"
-    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, clear_type, output_filename, bg_link)
-
-    file = discord.File(output_filename)
-    await interaction.followup.send(f"{interaction.user.mention}", file=file)
-    os.remove(output_filename)
-
-@bot.tree.command(name="b30", description="Generate B30")
-@app_commands.describe(background="Change the background of the generated image (I stole them from the b30 website)")
-async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"):
+@bot.tree.command(name="b30", description="Generate your Best 30 profile")
+@app_commands.describe(
+    background="Change the background of the generated image (I stole them from the b30 website)",
+    is_ap_only="Set to True to generate a B30 using only AP scores"
+)
+async def b30(interaction: discord.Interaction, background: bg_literal = "kitty", is_ap_only: bool = False):
     bg_link = f"assets/background/{background}.png"
     await interaction.response.defer()
 
@@ -658,6 +672,9 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
     all_songs = []
 
     for song_id, difficulty, constant, clear_type in scores:
+        if is_ap_only and clear_type != 'AP':
+            continue
+            
         info = interaction.client.data.get((song_id, difficulty))
         song_name = info.get('Song Name') if info else 'Unknown'
         
@@ -670,17 +687,34 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
             'constant': final_constant,
             'clear_type': clear_type
         })
+
+    if not all_songs:
+        await interaction.followup.send("You don't have any AP scores logged yet!")
+        return
     
     all_songs.sort(key=lambda x: (-x['constant'], x['name']))
     top_30_songs = all_songs[:30]
     
     total_constant = sum(song['constant'] for song in top_30_songs)
     
-    output_filename = f"b30_{interaction.user.id}.png"
-    await asyncio.to_thread(generate_b30_image, total_constant / len(top_30_songs), top_30_songs, None, output_filename, bg_link)
+    file_suffix = "_ap" if is_ap_only else ""
+    output_filename = f"b30_{interaction.user.id}{file_suffix}.png"
+    
+    image_mode = 'AP' if is_ap_only else None
+    
+    await asyncio.to_thread(
+        generate_b30_image, 
+        total_constant / len(top_30_songs), 
+        top_30_songs, 
+        image_mode, 
+        output_filename, 
+        bg_link
+    )
 
     file = discord.File(output_filename)
     await interaction.followup.send(f"{interaction.user.mention}", file=file)
     os.remove(output_filename)
 
+bot.tree.add_command(song_group)
+bot.tree.add_command(record_group)
 bot.run(TOKEN)
