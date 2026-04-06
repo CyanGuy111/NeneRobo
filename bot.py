@@ -352,7 +352,7 @@ async def song_randomizer(interaction: discord.Interaction,
     except discord.HTTPException:
         pass
 
-@bot.tree.command(name="sync-database", description="Force the bot to sync with the spreadsheet", guild=discord.Object(id=BOT_SERVER_ID) if BOT_SERVER_ID else None)
+@bot.tree.command(name="sync-database", description="Force the bot to sync with the spreadsheet")
 @is_admin()
 async def force_update(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
