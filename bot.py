@@ -173,7 +173,7 @@ class MyBot(commands.Bot):
             raw_data = await asyncio.to_thread(fetch_obg)
             
             if raw_data:
-                headers = raw_data[1][:6] + ['Notes']
+                headers = raw_data[1][:8] + ['Notes']
                 parsed = []
                 
                 for row in raw_data[2:]:
@@ -182,7 +182,7 @@ class MyBot(commands.Bot):
                     
                     padded_row = row + ([""] * (17 - len(row)))
 
-                    parsed.append(dict(zip(headers, padded_row[:6] + [padded_row[-1]])))
+                    parsed.append(dict(zip(headers, padded_row[:8] + [padded_row[-1]])))
 
                 self.data = {(i['ID'], i['Difficulty']): i for i in parsed}
                 self.unique_songs = sorted(list(set(info.get('Song Name', '') for info in self.data.values() if info.get('Song Name'))))
@@ -270,6 +270,8 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
 
     FC_const = entry.get('FC Constant', 'N/A')
     AP_const = entry.get('AP Constant', 'N/A')
+    dFC = entry.get('𝚫FC', 'N/A')
+    dAP = entry.get('𝚫AP', 'N/A')
     jp_name = entry.get('Japanese name', 'N/A')
     note = f"**Note:** `{entry.get('Notes')}`" if entry.get('Notes') else ""
 
@@ -279,8 +281,8 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
                     f"**JP name:** `{jp_name if jp_name != '' else 'N/A'}`\n"
                     f"**Level:** `{entry.get('Ingame Constant', 'N/A')}`\n"
                     f"**39s Constant:** `{entry.get('39s const', 'N/A')}`\n"
-                    f"**FC Constant (OBG list):** `{FC_const if FC_const != '0.0' else 'N/A'}`\n"
-                    f"**AP Constant (OBG list):** `{AP_const if AP_const != '0.0' else 'N/A'}`\n" + note
+                    f"**FC Constant (OBG list):** `{FC_const if FC_const != '0.0' else 'N/A'}{f" ({dFC})" if dFC != "±0" else ""}`\n"
+                    f"**AP Constant (OBG list):** `{AP_const if AP_const != '0.0' else 'N/A'}{f" ({dAP})" if dAP != "±0" else ""}`\n" + note
     )
     embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 'N/A'))))  
     await interaction.response.send_message(embed=embed)
