@@ -33,13 +33,13 @@ intents.message_content = True
 
 def is_admin():
     def check(interaction: discord.Interaction) -> bool:
-        admins = [int(i) for i in os.getenv("ADMIN_IDs").split(',')]
+        admins = [int(i) for i in os.getenv("ADMIN_IDs", "").split(',')]
         return interaction.user.id in admins
     return app_commands.check(check)
 
 def is_owner():
     def check(interaction: discord.Interaction) -> bool:
-        admins = int(os.getenv("OWNER_ID"))
+        admins = int(os.getenv("OWNER_ID", 0))
         return interaction.user.id == admins
     return app_commands.check(check)
 
@@ -139,7 +139,7 @@ class MyBot(commands.Bot):
             
             if song_info:
                 c_39 = song_info.get('39s const')
-                c_game = song_info['Ingame Constant']
+                c_game = song_info.get('Ingame Constant')
 
                 c_39 = float(c_39) if c_39 and c_39 not in ['N/A', ''] else None
                 c_game = float(c_game) if c_game and c_game not in ['N/A', ''] else 0.0
@@ -173,21 +173,24 @@ class MyBot(commands.Bot):
             raw_data = await asyncio.to_thread(fetch_obg)
             
             if raw_data:
-                headers = raw_data[1][:8] + ['Notes']
+                headers = raw_data[1][:9] + ['Notes']
+                headers[1] = "Song Name"
                 parsed = []
                 
                 for row in raw_data[2:]:
                     if not row:
                         continue
                     
-                    padded_row = row + ([""] * (17 - len(row)))
+                    padded_row = row + ([""] * (20 - len(row)))
 
-                    parsed.append(dict(zip(headers, padded_row[:8] + [padded_row[-1]])))
+                    parsed.append(dict(zip(headers, padded_row[:9] + [padded_row[-1]])))
 
-                self.data = {(i['ID'], i['Difficulty']): i for i in parsed}
+                self.data = {(i.get('ID'), i.get('Difficulty')): i for i in parsed if i.get('ID') and i.get('Difficulty')}
                 self.unique_songs = sorted(list(set(info.get('Song Name', '') for info in self.data.values() if info.get('Song Name'))))
 
                 print(f"Successfully cached OBG")
+
+            # print(self.data)
                 
         except Exception as e:
             print(f"Failed to update data (OBG): {e}")
@@ -200,9 +203,11 @@ class MyBot(commands.Bot):
                 parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
                 
                 for i in parsed:
-                    if (i['Song ID'], i['Difficulty']) in self.data:
-                        self.data[(i['Song ID'], i['Difficulty'])]["Japanese name"] = i[""]
-                        self.data[(i['Song ID'], i['Difficulty'])]["39s const"] = i["Constant"]
+                    song_id = i.get('Song ID')
+                    diff = i.get('Difficulty')
+                    if song_id and diff and (song_id, diff) in self.data:
+                        self.data[(song_id, diff)]["Japanese name"] = i.get("")
+                        self.data[(song_id, diff)]["39s const"] = i.get("Constant")
                 print(f"Successfully cached 39s")
                 
         except Exception as e:
@@ -281,10 +286,10 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
                     f"**JP name:** `{jp_name if jp_name != '' else 'N/A'}`\n"
                     f"**Level:** `{entry.get('Ingame Constant', 'N/A')}`\n"
                     f"**39s Constant:** `{entry.get('39s const', 'N/A')}`\n"
-                    f"**FC Constant (OBS list):** `{FC_const if FC_const != '0.0' else 'N/A'}{f" (±{dFC})" if dFC != "±0" else ""}`\n"
-                    f"**AP Constant (OBS list):** `{AP_const if AP_const != '0.0' else 'N/A'}{f" (±{dAP})" if dAP != "±0" else ""}`\n" + note
+                    f"**FC Constant (OBS list):** `{FC_const if FC_const != '0.0' else 'N/A'}{f" (±{dFC})" if dFC != "0.0" else ""}`\n"
+                    f"**AP Constant (OBS list):** `{AP_const if AP_const != '0.0' else 'N/A'}{f" (±{dAP})" if dAP != "0.0" else ""}`\n" + note
     )
-    embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 'N/A'))))  
+    embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 0))))  
     await interaction.response.send_message(embed=embed)
     try:
         bot_msg = await interaction.original_response()
@@ -309,7 +314,7 @@ async def song_jacket(interaction: discord.Interaction, song: str):
     embed = discord.Embed(
         title=entry.get('Song Name', 'Unknown'),
     )
-    embed.set_image(url=get_img_url(int(entry.get('ID', 'N/A'))))  
+    embed.set_image(url=get_img_url(int(entry.get('ID', 0))))  
     await interaction.response.send_message(embed=embed)
     try:
         bot_msg = await interaction.original_response()
@@ -325,9 +330,9 @@ async def song_randomizer(interaction: discord.Interaction,
                           amount:int = 5):
     
     song_list = [song for song in interaction.client.data.values() 
-                 if (difficulty == None or song['Difficulty'] == difficulty) 
-                 and (lowest_level == None or float(song['Ingame Constant']) >= lowest_level)
-                 and (highest_level == None or float(song['Ingame Constant']) <= highest_level)]
+                 if (difficulty == None or song.get('Difficulty') == difficulty) 
+                 and (lowest_level == None or float(song.get('Ingame Constant', 0.0)) >= lowest_level)
+                 and (highest_level == None or float(song.get('Ingame Constant', 0.0)) <= highest_level)]
     
     if not song_list:
         await interaction.response.send_message("No matched songs found!", ephemeral=True)
@@ -428,7 +433,7 @@ class ScoreView(discord.ui.View):
         self.amount = 25
         self.max_pages = max(1, (len(self.song_list) + self.amount - 1) // self.amount)
         
-        self.key_to_name = {song['key']: f"{song['name']} ({song['difficulty']})" for song in self.song_list}
+        self.key_to_name = {song.get('key'): f"{song.get('name')} ({song.get('difficulty')})" for song in self.song_list if song.get('key')}
 
         self.selected_keys = set()
 
@@ -443,7 +448,7 @@ class ScoreView(discord.ui.View):
         if not self.selected_keys:
             text = "Empty"
         else:
-            names = [self.key_to_name[key] for key in self.selected_keys]
+            names = [self.key_to_name.get(key, "Unknown") for key in self.selected_keys]
             text = '\n'.join(names)
 
             if len(text) > 1500:
@@ -462,11 +467,11 @@ class ScoreView(discord.ui.View):
 
         options = [
             discord.SelectOption(
-                label=f"{song['name']} ({song['difficulty']})",
-                description=f"Constant: {song['const']}",
-                value=song['key'],
-                default=(song['key'] in self.selected_keys)
-            ) for song in songs
+                label=f"{song.get('name')} ({song.get('difficulty')})",
+                description=f"Constant: {song.get('const')}",
+                value=song.get('key'),
+                default=(song.get('key') in self.selected_keys)
+            ) for song in songs if song.get('key')
         ]
 
         self.select_menu.options = options
@@ -495,10 +500,11 @@ class ScoreView(discord.ui.View):
 
         records = []
         for key in self.selected_keys:
-            const = self.info[key][0]
-            difficulty = self.info[key][1]
-            song_id = key.split('_')[0] 
-            records.append((interaction.user.id, song_id, difficulty, const, self.clear_type))
+            if key in self.info:
+                const = self.info[key][0]
+                difficulty = self.info[key][1]
+                song_id = key.split('_')[0] 
+                records.append((interaction.user.id, song_id, difficulty, const, self.clear_type))
 
         await interaction.client.update_score(records)
 
@@ -525,7 +531,7 @@ async def log_score(interaction: discord.Interaction,
         if difficulty is not None and song.get('Difficulty') != difficulty:
             continue
 
-        level = float(song['Ingame Constant'])
+        level = float(song.get('Ingame Constant', 0.0))
 
         if lowest_level is not None and level < lowest_level:
             continue
@@ -541,24 +547,24 @@ async def log_score(interaction: discord.Interaction,
         else:
             obg_const = song.get('FC Constant')
 
-        const = get_b30_const(c_39, obg_const, c_game, difficulty)
+        const = get_b30_const(c_39, obg_const, c_game, song.get('Difficulty'))
 
-        key = f"{song['ID']}_{song['Difficulty']}"
+        key = f"{song.get('ID')}_{song.get('Difficulty')}"
 
         song_list.append({
             'key': key,
-            'name': song['Song Name'],
-            'difficulty': song['Difficulty'],
+            'name': song.get('Song Name', 'Unknown'),
+            'difficulty': song.get('Difficulty', 'Unknown'),
             'const': const
         })
 
-        info[key] =  (const, song['Difficulty'])
+        info[key] =  (const, song.get('Difficulty'))
     
     if not song_list:
         await interaction.response.send_message("No matched songs found!", ephemeral=True)
         return
     
-    song_list.sort(key=lambda x: (-x['const'], x['name']))
+    song_list.sort(key=lambda x: (-x.get('const', 0.0), x.get('name', '')))
 
     view = ScoreView(song_list, clear_type, info)
 
@@ -598,15 +604,17 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
 
     song_id = entry.get('ID')
 
-    await interaction.client.update_score([(
-        interaction.user.id, 
-        song_id, 
-        difficulty, 
-        const, 
-        clear_type
-    )])
-
-    await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
+    if song_id is not None:
+        await interaction.client.update_score([(
+            interaction.user.id, 
+            song_id, 
+            difficulty, 
+            const, 
+            clear_type
+        )])
+        await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
+    else:
+        await interaction.followup.send("Error logging score, missing song ID.")
 
 @record_group.command(name="delete", description="Delete a logged score from your profile")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
@@ -694,10 +702,10 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
         await interaction.followup.send("You don't have any AP scores logged yet!")
         return
     
-    all_songs.sort(key=lambda x: (-x['constant'], x['name']))
+    all_songs.sort(key=lambda x: (-x.get('constant', 0.0), x.get('name', '')))
     top_30_songs = all_songs[:30]
     
-    total_constant = sum(song['constant'] for song in top_30_songs)
+    total_constant = sum(song.get('constant', 0.0) for song in top_30_songs)
     
     file_suffix = "_ap" if is_ap_only else ""
     output_filename = f"b30_{interaction.user.id}{file_suffix}.png"
@@ -706,7 +714,7 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
     
     await asyncio.to_thread(
         generate_b30_image, 
-        total_constant / len(top_30_songs), 
+        total_constant / len(top_30_songs) if len(top_30_songs) > 0 else 0, 
         top_30_songs, 
         image_mode, 
         output_filename, 
