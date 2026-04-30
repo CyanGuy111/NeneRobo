@@ -175,6 +175,7 @@ class MyBot(commands.Bot):
             if raw_data:
                 headers = raw_data[1][:9] + ['Notes']
                 headers[1] = "Song Name"
+                headers[2] = "Japanese name"
                 parsed = []
                 
                 for row in raw_data[2:]:
@@ -206,7 +207,6 @@ class MyBot(commands.Bot):
                     song_id = i.get('Song ID')
                     diff = i.get('Difficulty')
                     if song_id and diff and (song_id, diff) in self.data:
-                        self.data[(song_id, diff)]["Japanese name"] = i.get("")
                         self.data[(song_id, diff)]["39s const"] = i.get("Constant")
                 print(f"Successfully cached 39s")
                 
