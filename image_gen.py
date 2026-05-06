@@ -1,6 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
-import textwrap
 
 def gradient(width, height, color1, color2, direction='horizontal'):
     base = Image.new("RGBA", (width, height))
@@ -36,15 +35,42 @@ def gradient(width, height, color1, color2, direction='horizontal'):
 def draw_text_with_special_symbols(draw, x, y, text, main_font, secondary_font, fill = "black", scale = 1):
     cur_y = y
     line_spacing = main_font.size + (4 * scale)
+    ascent, descent = main_font.getmetrics()
 
     for line in text.split('\n'):
         cur_x = x
         for char in line:
             font = secondary_font if ord(char) > 0x024F else main_font
 
-            draw.text((cur_x, cur_y), char, font=font, fill=fill)
+            draw.text((cur_x, cur_y + ascent), char, font=font, fill=fill, anchor="ls")
             cur_x += font.getlength(char)
         cur_y += line_spacing
+
+def wrap_text(text, width, main_font, secondary_font):
+    lines = []
+    current_line = ""
+    current_w = 0
+
+    for char in text:
+        font = secondary_font if ord(char) > 0x024F else main_font
+        char_w = font.getlength(char)
+
+        if current_w + char_w > width:
+            lines.append(current_line)
+            if char == ' ':
+                current_line = ""
+                current_w = 0
+            else:
+                current_line = char
+                current_w = char_w
+        else:
+            current_line += char
+            current_w += char_w
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
 
 def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png", background="assets/background/kitty.png"):
     SCALE = 2
@@ -74,7 +100,7 @@ def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename
     
     try:
         font_title = ImageFont.truetype("assets/fonts/itim.ttf", 24 * SCALE)
-        font_song = ImageFont.truetype("assets/fonts/itim.ttf", 16 * SCALE)
+        font_song = ImageFont.truetype("assets/fonts/itim.ttf", 19 * SCALE)
         font_song_fallback = ImageFont.truetype("assets/fonts/NotoSansJP-Bold.ttf", 16 * SCALE)
         font_badge = ImageFont.truetype("assets/fonts/itim.ttf", 14 * SCALE)
         font_diamond = ImageFont.truetype("assets/fonts/itim.ttf", 12 * SCALE)
@@ -158,7 +184,7 @@ def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename
         text_y = y_pos + JACKET_PADDING
         song_name = song.get('name')
         
-        wrapped_name = "\n".join(textwrap.wrap(song_name, width=18))
+        wrapped_name = "\n".join(wrap_text(song_name, CARD_WIDTH - (2 * JACKET_PADDING) - JACKET_SIZE, font_song, font_song_fallback))
         
         draw_text_with_special_symbols(draw, text_x, text_y, wrapped_name, font_song, font_song_fallback, scale=SCALE)
 

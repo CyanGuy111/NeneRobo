@@ -664,7 +664,7 @@ bg_literal = Literal[
     background="Change the background of the generated image (I stole them from the b30 website)",
     is_ap_only="Set to True to generate a B30 using only AP scores"
 )
-async def b30(interaction: discord.Interaction, background: bg_literal = "kitty", is_ap_only: bool = False):
+async def b30(interaction: discord.Interaction, background: bg_literal = "kitty", is_ap_only: bool = False, is_japanese: bool = False):
     bg_link = f"assets/background/{background}.png"
     await interaction.response.defer()
 
@@ -686,7 +686,11 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
             continue
             
         info = interaction.client.data.get((song_id, difficulty))
-        song_name = info.get('Song Name') if info else 'Unknown'
+
+        if is_japanese:
+            song_name = info.get('Japanese name') if info else 'Unknown'
+        else:
+            song_name = info.get('Song Name') if info else 'Unknown'
         
         final_constant = constant if clear_type == 'AP' else constant - 1.0
         
