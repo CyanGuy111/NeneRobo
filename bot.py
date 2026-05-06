@@ -615,6 +615,12 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
         await interaction.followup.send(f"Successfully logged **{song} ({difficulty})** as a `{clear_type}`!")
     else:
         await interaction.followup.send("Error logging score, missing song ID.")
+    
+    try:
+        bot_msg = await interaction.original_response()
+        await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+    except discord.HTTPException:
+        pass
 
 @record_group.command(name="delete", description="Delete a logged score from your profile")
 @app_commands.autocomplete(song=song_autocomplete, difficulty=diff_autocomplete)
@@ -635,15 +641,14 @@ async def delete_score(interaction: discord.Interaction, song: str, difficulty: 
     
     if deleted_rows > 0:
         await interaction.followup.send(f"Successfully deleted your saved score for **{song} ({difficulty})**!")
-        
-        try:
-            bot_msg = await interaction.original_response()
-            await bot_msg.add_reaction('<:kanade:1481983019463217252>')
-        except discord.HTTPException:
-            pass
-            
     else:
         await interaction.followup.send(f"You have no saved score to delete.", ephemeral=True)
+
+    try:
+        bot_msg = await interaction.original_response()
+        await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+    except discord.HTTPException:
+        pass
 
 bg_literal = Literal[
     "canary",
@@ -727,6 +732,11 @@ async def b30(interaction: discord.Interaction, background: bg_literal = "kitty"
 
     file = discord.File(output_filename)
     await interaction.followup.send(f"{interaction.user.mention}", file=file)
+    try:
+        bot_msg = await interaction.original_response()
+        await bot_msg.add_reaction('<:kanade:1481983019463217252>')
+    except discord.HTTPException:
+        pass
     os.remove(output_filename)
 
 bot.tree.add_command(song_group)
