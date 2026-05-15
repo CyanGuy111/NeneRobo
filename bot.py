@@ -333,7 +333,7 @@ async def song_randomizer(interaction: discord.Interaction,
     
     for song in interaction.client.data.values():
         try:
-            ingame_const = song.get('Ingame Constant', 0.0)
+            ingame_const = float(song.get('Ingame Constant', 0.0))
         except:
             continue
 
