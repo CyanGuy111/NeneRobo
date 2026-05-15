@@ -329,10 +329,19 @@ async def song_randomizer(interaction: discord.Interaction,
                           difficulty: Literal["Expert", "Master", "Append"] = None, 
                           amount:int = 5):
     
-    song_list = [song for song in interaction.client.data.values() 
-                 if (difficulty == None or song.get('Difficulty') == difficulty) 
-                 and (lowest_level == None or float(song.get('Ingame Constant', 0.0)) >= lowest_level)
-                 and (highest_level == None or float(song.get('Ingame Constant', 0.0)) <= highest_level)]
+    song_list = []
+    
+    for song in interaction.client.data.values():
+        try:
+            ingame_const = song.get('Ingame Constant', 0.0)
+        except:
+            continue
+
+        if ((difficulty == None or song.get('Difficulty') == difficulty) 
+            and (lowest_level == None or ingame_const >= lowest_level) 
+            and (highest_level == None or ingame_const <= highest_level)):
+            
+            song_list.append(song)
     
     if not song_list:
         await interaction.response.send_message("No matched songs found!", ephemeral=True)
@@ -530,8 +539,11 @@ async def log_score(interaction: discord.Interaction,
     for song in interaction.client.data.values():
         if difficulty is not None and song.get('Difficulty') != difficulty:
             continue
-
-        level = float(song.get('Ingame Constant', 0.0))
+        
+        try:
+            level = float(song.get('Ingame Constant', 0.0))
+        except:
+            continue
 
         if lowest_level is not None and level < lowest_level:
             continue
