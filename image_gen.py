@@ -46,30 +46,54 @@ def draw_text_with_special_symbols(draw, x, y, text, main_font, secondary_font, 
             cur_x += font.getlength(char)
         cur_y += line_spacing
 
-def wrap_text(text, width, main_font, secondary_font):
-    lines = []
-    current_line = ""
-    current_w = 0
-
+def get_text_width(text, main_font, secondary_font):
+    w = 0
     for char in text:
         font = secondary_font if ord(char) > 0x024F else main_font
-        char_w = font.getlength(char)
+        w += font.getlength(char)
+    return w
 
-        if current_w + char_w > width:
-            lines.append(current_line)
-            if char == ' ':
-                current_line = ""
-                current_w = 0
-            else:
-                current_line = char
-                current_w = char_w
+def wrap_text(text, width, main_font, secondary_font):
+    lines = []
+    words = text.split(' ')
+    current_line = ""
+    
+    for word in words:
+        test_line = current_line + " " + word if current_line else word
+        
+        if get_text_width(test_line, main_font, secondary_font) <= width:
+            current_line = test_line
         else:
-            current_line += char
-            current_w += char_w
-
+            if current_line:
+                lines.append(current_line)
+                current_line = ""
+            
+            remaining_word = word
+            while get_text_width(remaining_word, main_font, secondary_font) > width:
+                prefix = ""
+                for char in remaining_word:
+                    is_cjk = 0x3000 <= ord(char) <= 0x9FFF
+                    suffix = "" if is_cjk else "-"
+                    
+                    test_prefix = prefix + char + suffix
+                    if get_text_width(test_prefix, main_font, secondary_font) > width:
+                        if not prefix:
+                            prefix = char
+                        break
+                    prefix += char
+                last_char = prefix[-1] if prefix else ""
+                if last_char and (0x3000 <= ord(last_char) <= 0x9FFF):
+                    lines.append(prefix)
+                else:
+                    lines.append(prefix + "-")
+                    
+                remaining_word = remaining_word[len(prefix):]
+            
+            current_line = remaining_word
+            
     if current_line:
         lines.append(current_line)
-
+            
     return lines
 
 def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename="my_b30.png", background="assets/background/kitty.png"):
@@ -184,7 +208,7 @@ def generate_b30_image(ranking_score, top_30_songs, type = None, output_filename
         text_y = y_pos + JACKET_PADDING
         song_name = song.get('name')
         
-        wrapped_name = "\n".join(wrap_text(song_name, CARD_WIDTH - (2 * JACKET_PADDING) - JACKET_SIZE, font_song, font_song_fallback))
+        wrapped_name = "\n".join(wrap_text(song_name, CARD_WIDTH - (2 * JACKET_PADDING) - JACKET_SIZE - 5, font_song, font_song_fallback))
         
         draw_text_with_special_symbols(draw, text_x, text_y, wrapped_name, font_song, font_song_fallback, scale=SCALE)
 
