@@ -17,6 +17,11 @@ SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 KANADE_EMOJI = '<:kanade:1481983019463217252>'
 
+USER_AGENT = os.getenv(
+    'USER_AGENT',
+    'generic-agent/1.0 (personal project; contact: not-set@example.com)'
+)
+
 def get_intents() -> discord.Intents:
     intents = discord.Intents.default()
     intents.message_content = True
