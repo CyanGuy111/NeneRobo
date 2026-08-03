@@ -3,16 +3,13 @@ import asyncio
 import gspread
 from google.oauth2.service_account import Credentials
 
-from config import SERVICE_ACCOUNT_FILE, SHEETS_SCOPES, OBG_SHEET_KEY, SEKAI39S_SHEET_KEY
+from config import SERVICE_ACCOUNT_FILE, SHEETS_SCOPES, OBG_SHEET_KEY
 
 _creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SHEETS_SCOPES)
 client = gspread.authorize(_creds)
 
 def _fetch_obg_raw():
     return client.open_by_key(OBG_SHEET_KEY).sheet1.get_all_values()
-
-def _fetch_39s_raw():
-    return client.open_by_key(SEKAI39S_SHEET_KEY).worksheet('Constants').get('A:G')
 
 async def fetch_song_data() -> tuple[dict, list, list]:
     """Fetches and merges OBG + 39s sheet data.
@@ -50,22 +47,5 @@ async def fetch_song_data() -> tuple[dict, list, list]:
 
     except Exception as e:
         print(f"Failed to update data (OBG): {e}")
-
-    try:
-        raw_data = await asyncio.to_thread(_fetch_39s_raw)
-
-        if raw_data:
-            headers = raw_data[0]
-            parsed = [dict(zip(headers, row)) for row in raw_data[1:]]
-
-            for i in parsed:
-                song_id = i.get('Song ID')
-                diff = i.get('Difficulty')
-                if song_id and diff and (song_id, diff) in data:
-                    data[(song_id, diff)]["39s const"] = i.get("Constant")
-            print("Successfully cached 39s")
-
-    except Exception as e:
-        print(f"Failed to update data (39s): {e}")
 
     return data, unique_songs, normalized_names

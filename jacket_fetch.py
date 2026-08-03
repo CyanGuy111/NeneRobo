@@ -4,8 +4,10 @@ import time
 import gspread
 from google.oauth2.service_account import Credentials
 
+from config import SERVICE_ACCOUNT_FILE
+
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_file("service_account.json", scopes=scopes)
+creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=scopes)
 clients = gspread.authorize(creds)
 
 def download_jackets():
