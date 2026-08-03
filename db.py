@@ -70,10 +70,7 @@ class ScoreDatabase:
             song_info = sheet_data.get((song_id, difficulty))
 
             if song_info:
-                c_39 = song_info.get('39s const')
                 c_game = song_info.get('Ingame Constant')
-
-                c_39 = float(c_39) if c_39 and c_39 not in ['N/A', ''] else None
                 c_game = float(c_game) if c_game and c_game not in ['N/A', ''] else 0.0
 
                 if clear_type == 'AP':
@@ -81,7 +78,7 @@ class ScoreDatabase:
                 else:
                     obg_const = song_info.get('FC Constant')
 
-                const = get_b30_const(c_39, obg_const, c_game, difficulty)
+                const = get_b30_const(obg_const, c_game, difficulty)
                 update_batch.append((const, user_id, song_id, difficulty))
 
         if update_batch:
