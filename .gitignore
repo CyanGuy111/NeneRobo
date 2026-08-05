@@ -1,7 +1,9 @@
 testing.py
 .env
 service_account.json
-./tmp
+tmp/
 *.sqlite
 *.db
 __pycache__
+assets/jackets/
+song_metadata.json

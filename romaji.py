@@ -18,16 +18,16 @@ HEADERS = {
     "User-Agent": USER_AGENT,
     # if you see "Failed to refresh romaji data, keeping existing cache: 403 Client Error: Forbidden for url: 
     # https://www.sekaipedia.org/w/api.php?action=cargofields&table=songs&format=json", uncomment the following
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://www.sekaipedia.org/",
-    "Origin": "https://www.sekaipedia.org",
-    "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
+    # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    # "Accept-Language": "en-US,en;q=0.9",
+    # "Referer": "https://www.sekaipedia.org/",
+    # "Origin": "https://www.sekaipedia.org",
+    # "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+    # "Sec-Ch-Ua-Mobile": "?0",
+    # "Sec-Ch-Ua-Platform": '"Windows"',
+    # "Sec-Fetch-Dest": "empty",
+    # "Sec-Fetch-Mode": "cors",
+    # "Sec-Fetch-Site": "same-origin",
 }
 
 def _get(params: dict) -> dict:
