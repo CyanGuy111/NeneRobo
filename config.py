@@ -10,7 +10,6 @@ BOT_SERVER_ID = int(os.getenv('BOT_SERVER_ID', 0))
 DB_PATH = 'scores.db'
 
 OBG_SHEET_KEY = "1dYo1zlBXFbulieiuVBDmqetOqrw_HRslw0qM-md5Ioo"
-SEKAI39S_SHEET_KEY = "1B8tX9VL2PcSJKyuHFVd2UT_8kYlY4ZdwHwg9MfWOPug"
 
 SERVICE_ACCOUNT_FILE = "service_account.json"
 SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]

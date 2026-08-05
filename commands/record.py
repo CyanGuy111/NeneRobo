@@ -45,7 +45,6 @@ async def log_score(interaction: discord.Interaction,
         if highest_level is not None and level > highest_level:
             continue
 
-        c_39 = song.get('39s const')
         c_game = song.get('Ingame Constant')
 
         if clear_type == 'AP':
@@ -53,7 +52,7 @@ async def log_score(interaction: discord.Interaction,
         else:
             obg_const = song.get('FC Constant')
 
-        const = get_b30_const(c_39, obg_const, c_game, song.get('Difficulty'))
+        const = get_b30_const(obg_const, c_game, song.get('Difficulty'))
 
         key = f"{song.get('ID')}_{song.get('Difficulty')}"
 
@@ -94,7 +93,6 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
 
     await interaction.response.defer()
 
-    c_39 = entry.get('39s const')
     c_game = entry.get('Ingame Constant', 0.0)
 
     if clear_type == 'AP':
@@ -102,7 +100,7 @@ async def log_single(interaction: discord.Interaction, song: str, difficulty: st
     else:
         obg_const = entry.get('FC Constant')
 
-    const = get_b30_const(c_39, obg_const, c_game, difficulty)
+    const = get_b30_const(obg_const, c_game, difficulty)
 
     song_id = entry.get('ID')
 
