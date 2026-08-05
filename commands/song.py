@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 
 from config import KANADE_EMOJI
-from utils import get_img_url, get_chart_url
+from utils import get_img_url, get_chart_url, get_b30_const
 from autocomplete import song_autocomplete, diff_autocomplete, chart_diff_autocomplete
 
 song_group = app_commands.Group(name="song", description="Commands for looking up song data")
@@ -31,10 +31,14 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
         await interaction.response.send_message("Song not found!", ephemeral=True)
         return
 
+    song_lv = entry.get('Ingame Constant', 'N/A')
     FC_const = entry.get('FC Constant', 'N/A')
     AP_const = entry.get('AP Constant', 'N/A')
     dFC = entry.get('𝚫FC', 'N/A')
     dAP = entry.get('𝚫AP', 'N/A')
+    b30_FC = round(get_b30_const(FC_const, song_lv, difficulty), 1) if FC_const != '0.0' else 'N/A'
+    b30_AP = round(get_b30_const(AP_const, song_lv, difficulty), 1) if AP_const != '0.0' else 'N/A'
+    
     jp_name = entry.get('Japanese name', 'N/A')
     note = f"**Note:** `{entry.get('Notes')}`" if entry.get('Notes') else ""
 
@@ -42,9 +46,11 @@ async def song_constant(interaction: discord.Interaction, song: str, difficulty:
         title=entry.get('Song Name', 'Unknown'),
         description=f"**Difficulty:** {entry.get('Difficulty', 'Unknown')}\n"
                     f"**JP name:** `{jp_name if jp_name != '' else 'N/A'}`\n"
-                    f"**Level:** `{entry.get('Ingame Constant', 'N/A')}`\n"
-                    f"**FC Constant:** `{FC_const if FC_const != '0.0' else 'N/A'}{f" (±{dFC})" if dFC != "0.0" else ""}`\n"
-                    f"**AP Constant:** `{AP_const if AP_const != '0.0' else 'N/A'}{f" (±{dAP})" if dAP != "0.0" else ""}`\n" + note
+                    f"**Level:** `{song_lv}`\n"
+                    f"**FC Constant:** `{FC_const if FC_const != '0.0' else 'N/A'}{f" ± {dFC}" if dFC != "0.0" else ""}`\n"
+                    f"**AP Constant:** `{AP_const if AP_const != '0.0' else 'N/A'}{f" ± {dAP}" if dAP != "0.0" else ""}`\n"
+                    f"**B30:** `{b30_FC}/{b30_AP}`\n"
+                    + note
     )
     embed.set_thumbnail(url=get_img_url(int(entry.get('ID', 0))))
     await interaction.response.send_message(embed=embed)
